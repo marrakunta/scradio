@@ -1,4 +1,10 @@
-export type WidgetEvent = "READY" | "PLAY" | "PAUSE" | "SEEK" | "FINISH";
+export type WidgetEvent =
+  | "READY"
+  | "PLAY"
+  | "PAUSE"
+  | "SEEK"
+  | "FINISH"
+  | "PLAY_PROGRESS";
 
 type WidgetLike = {
   bind: (eventName: string, cb: () => void) => void;

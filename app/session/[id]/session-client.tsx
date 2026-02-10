@@ -42,6 +42,8 @@ export default function SessionClient({ sessionId }: Props) {
   const hostSecretRef = useRef<string | null>(null);
   const hostPlayingRef = useRef(false);
   const widgetStartedRef = useRef(false);
+  const hostProgressPostAtRef = useRef(0);
+  const autoplayCheckedRef = useRef(false);
 
   const [session, setSession] = useState<SessionPublic | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +133,7 @@ export default function SessionClient({ sessionId }: Props) {
       const target = getTargetMs(next);
       const current = await widget.getPosition();
 
-      const threshold = reason === "periodic" ? 2_000 : 1_500;
+      const threshold = reason === "periodic" ? 1_800 : 700;
       const drift = Math.abs(current - target);
       const leaseExpired = getServerNowMs() > new Date(next.host_lease_expires_at).getTime();
       const canAggressiveSeek = !leaseExpired || reason === "periodic";
@@ -151,7 +153,8 @@ export default function SessionClient({ sessionId }: Props) {
 
       await widget.play();
 
-      if (reason !== "periodic" && !manuallyStarted) {
+      if (reason !== "periodic" && !manuallyStarted && !autoplayCheckedRef.current) {
+        autoplayCheckedRef.current = true;
         const before = await widget.getPosition();
         await sleep(1_200);
         const after = await widget.getPosition();
@@ -281,12 +284,23 @@ export default function SessionClient({ sessionId }: Props) {
           };
           const onSeek = () => {
             void postHostState("SEEK");
+            setTimeout(() => void postHostState("SEEK"), 350);
+            setTimeout(() => void postHostState("SEEK"), 900);
+          };
+          const onProgress = () => {
+            const now = Date.now();
+            if (now - hostProgressPostAtRef.current < 1_200) {
+              return;
+            }
+            hostProgressPostAtRef.current = now;
+            void postHostState("HEARTBEAT", true);
           };
 
           widget.bind("PLAY", onPlay);
           widget.bind("PAUSE", onPause);
           widget.bind("SEEK", onSeek);
           widget.bind("FINISH", onPause);
+          widget.bind("PLAY_PROGRESS", onProgress);
         } else {
           const state = pendingStateRef.current ?? latestStateRef.current;
           if (state) {
@@ -339,11 +353,22 @@ export default function SessionClient({ sessionId }: Props) {
   useEffect(() => {
     if (!isHost) return;
 
-    const interval = setInterval(() => {
-      void postHostState("HEARTBEAT");
-    }, 4_000);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
 
-    return () => clearInterval(interval);
+    const tick = async () => {
+      if (stopped) return;
+      await postHostState("HEARTBEAT");
+      const delay = hostPlayingRef.current ? 1_500 : 10_000;
+      timer = setTimeout(() => void tick(), delay);
+    };
+
+    timer = setTimeout(() => void tick(), hostPlayingRef.current ? 1_500 : 10_000);
+
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [isHost, postHostState]);
 
   useEffect(() => {
