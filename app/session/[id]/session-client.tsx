@@ -214,11 +214,12 @@ export default function SessionClient({ sessionId }: Props) {
     const storageKey = hostStorageKey(sessionId);
 
     if (hashHost) {
-      localStorage.setItem(storageKey, hashHost);
+      sessionStorage.setItem(storageKey, hashHost);
+      localStorage.removeItem(storageKey);
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
 
-    const secret = hashHost ?? localStorage.getItem(storageKey);
+    const secret = hashHost ?? sessionStorage.getItem(storageKey);
     if (secret) {
       hostSecretRef.current = secret;
       setIsHost(true);
