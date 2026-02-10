@@ -428,6 +428,7 @@ export default function SessionClient({ sessionId }: Props) {
                 src={iframeSrc}
                 loading="eager"
               />
+              {!isHost ? <div className="listenerPlayGuard" aria-hidden="true" /> : null}
             </div>
 
             {!isHost && autoplayBlocked ? (
